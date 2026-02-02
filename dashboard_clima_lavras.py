@@ -10,15 +10,20 @@ dias_semana = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
 
 # 2. Dados do Clima em Lavras - MG (Previsão Horária)
 
-url_forecast = "https://api.open-meteo.com/v1/forecast"
-params_forecast = {
-    "latitude": -21.245,
-    "longitude": -45.000,
-    "hourly": "temperature_2m,relativehumidity_2m,windspeed_10m"
-}
+# Função cacheada para buscar previsão
+@st.cache_data(ttl=3600)  # guarda os dados por 1 hora
+def get_forecast():
+    url_forecast = "http://api.open-meteo.com/v1/forecast"
+    params_forecast = {
+        "latitude": -21.245,
+        "longitude": -45.000,
+        "hourly": "temperature_2m,relativehumidity_2m,windspeed_10m"
+    }
+    response_forecast = requests.get(url_forecast, params=params_forecast)
+    return response_forecast.json()
 
-response = requests.get(url_forecast, params=params_forecast)
-data_forecast = response.json()
+# Uso no app
+data_forecast = get_forecast()
 
 # Criando DataFrame da previsão horária
 df_forecast = pd.DataFrame({
@@ -45,17 +50,23 @@ if start_date > end_date:
     st.sidebar.error(" ⚠️ A data de início deve ser anterior à data final.")
     df_historical = pd.DataFrame()
 else:
-    url_historical = "https://archive-api.open-meteo.com/v1/archive"
-    params_historical = {
-        "latitude": -21.245,
-        "longitude": -45.000,
-        "start_date": start_date.strftime("%Y-%m-%d"),
-        "end_date": end_date.strftime("%Y-%m-%d"),
-        "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum"
-    }
+    # Função cacheada para buscar dados históricos
+    @st.cache_data(ttl=3600)  # guarda os dados por 1 hora
+    def get_historical(start_date, end_date):
+        url_historical = "http://archive-api.open-meteo.com/v1/archive"
+        params_historical = {
+            "latitude": -21.245,
+            "longitude": -45.000,
+            "start_date": start_date.strftime("%Y-%m-%d"),
+            "end_date": end_date.strftime("%Y-%m-%d"),
+            "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum"
+        }
+        response_historical = requests.get(url_historical, params=params_historical)
+        return response_historical.json()
 
-    response_historical = requests.get(url_historical, params=params_historical)
-    data_historical = response_historical.json()
+    # Chama a função cacheada
+    data_historical = get_historical(start_date, end_date)
+    df_historical = pd.DataFrame(data_historical["daily"])
 
     # Criando DataFrame do histórico diário
 
@@ -316,4 +327,3 @@ if not df_historical.empty:
         st.success("💡 Este período foi marcado por chuvas abundantes, acima de 100 mm no total.")
     else:
         st.info("💡 Este período teve pouca chuva, com menos de 100 mm acumulados.")
-
